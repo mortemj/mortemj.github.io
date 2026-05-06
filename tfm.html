@@ -1,0 +1,1176 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pronóstico del Éxito y del Abandono Universitario · TFM · UJI</title>
+  <meta name="description" content="Trabajo Final de Máster sobre predicción del abandono universitario en la Universitat Jaume I mediante machine learning. Acceso a las dos versiones del proyecto: dinámica (V2) y original (V1)." />
+  <meta name="author" content="María José Morte Ruiz" />
+
+  <!-- Open Graph / redes sociales -->
+  <meta property="og:type" content="website" />
+  <meta property="og:title" content="TFM · Pronóstico del Abandono Universitario · UJI" />
+  <meta property="og:description" content="Predicción del abandono universitario en la Universitat Jaume I mediante machine learning. LightGBM · AUC 0.96 · 30K estudiantes." />
+  <meta property="og:url" content="https://mortemj.github.io/" />
+
+  <!-- Tipografías: Fraunces (display, con personalidad) + Inter Tight (body) + JetBrains Mono (datos) -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,900&family=Inter+Tight:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    /* ============================================
+       PALETA DIFERENCIADORA · TFM AU_UJI
+       Base oscura sofisticada + azul UJI + verde V2 + ámbar V1
+       ============================================ */
+    :root {
+      /* Base */
+      --bg-deep: #0a0e1a;
+      --bg: #0f1420;
+      --bg-elev: #161b2c;
+      --bg-elev-2: #1d2336;
+
+      /* Bordes y superficies */
+      --border: rgba(148,163,184,0.12);
+      --border-strong: rgba(148,163,184,0.25);
+
+      /* Texto */
+      --text: #f1f5f9;
+      --text-soft: #cbd5e1;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+
+      /* Acentos institucionales */
+      --uji-blue: #1e40af;
+      --uji-blue-light: #3b82f6;
+      --uji-blue-glow: rgba(59,130,246,0.35);
+
+      /* V2 — verde esmeralda (destacada, prioritaria) */
+      --v2: #10b981;
+      --v2-light: #34d399;
+      --v2-deep: #047857;
+      --v2-glow: rgba(16,185,129,0.3);
+      --v2-soft: rgba(16,185,129,0.08);
+
+      /* V1 — ámbar cálido (referencia, base) */
+      --v1: #f59e0b;
+      --v1-light: #fbbf24;
+      --v1-deep: #b45309;
+      --v1-glow: rgba(245,158,11,0.25);
+      --v1-soft: rgba(245,158,11,0.08);
+
+      /* Layout */
+      --max: 1180px;
+      --radius-lg: 24px;
+      --radius: 16px;
+      --radius-sm: 10px;
+      --radius-pill: 999px;
+
+      /* Sombras */
+      --shadow-lg: 0 30px 80px -20px rgba(0,0,0,0.7), 0 0 0 1px var(--border);
+      --shadow-glow-v2: 0 0 60px -10px var(--v2-glow);
+      --shadow-glow-v1: 0 0 50px -10px var(--v1-glow);
+      --shadow-glow-uji: 0 0 60px -10px var(--uji-blue-glow);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+    body {
+      font-family: "Inter Tight", system-ui, -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text);
+      line-height: 1.6;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+      overflow-x: hidden;
+      min-height: 100vh;
+
+      /* Fondo con atmósfera: aurora sutil */
+      background:
+        radial-gradient(ellipse 80% 60% at 15% 0%, rgba(59,130,246,0.18), transparent 60%),
+        radial-gradient(ellipse 60% 50% at 85% 10%, rgba(16,185,129,0.12), transparent 55%),
+        radial-gradient(ellipse 70% 50% at 50% 100%, rgba(245,158,11,0.08), transparent 60%),
+        var(--bg-deep);
+      background-attachment: fixed;
+    }
+
+    /* Patrón de grano sutil */
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      opacity: 0.4;
+      mix-blend-mode: overlay;
+      background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.45'/></svg>");
+      z-index: 1;
+    }
+
+    a { color: inherit; text-decoration: none; }
+    img { max-width: 100%; display: block; }
+
+    .container {
+      width: min(var(--max), calc(100% - 40px));
+      margin: 0 auto;
+      position: relative;
+      z-index: 2;
+    }
+
+    /* ============================================
+       TOPBAR
+       ============================================ */
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 50;
+      backdrop-filter: blur(20px) saturate(180%);
+      -webkit-backdrop-filter: blur(20px) saturate(180%);
+      background: rgba(10,14,26,0.75);
+      border-bottom: 1px solid var(--border);
+    }
+    .topbar-inner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 0;
+      gap: 24px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-mark {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background:
+        radial-gradient(circle at 30% 20%, var(--v2-light) 0%, var(--uji-blue) 50%, var(--bg-deep) 100%);
+      display: grid;
+      place-items: center;
+      font-family: "Fraunces", serif;
+      font-weight: 900;
+      font-size: 1.05rem;
+      color: #fff;
+      box-shadow: 0 8px 24px rgba(16,185,129,0.3);
+      letter-spacing: -0.02em;
+    }
+    .brand-text {
+      display: flex;
+      flex-direction: column;
+      gap: 1px;
+    }
+    .brand-title {
+      font-family: "Fraunces", serif;
+      font-weight: 600;
+      font-size: 0.95rem;
+      letter-spacing: -0.01em;
+      color: var(--text);
+    }
+    .brand-sub {
+      font-size: 0.72rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      font-weight: 500;
+    }
+
+    .nav {
+      display: flex;
+      gap: 4px;
+      font-size: 0.88rem;
+    }
+    .nav a {
+      padding: 8px 14px;
+      border-radius: var(--radius-pill);
+      color: var(--text-soft);
+      transition: background 0.2s, color 0.2s;
+    }
+    .nav a:hover {
+      background: var(--bg-elev);
+      color: var(--text);
+    }
+
+    /* ============================================
+       HERO
+       ============================================ */
+    .hero {
+      padding: 80px 0 60px;
+      position: relative;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: 1.3fr 1fr;
+      gap: 48px;
+      align-items: center;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 7px 14px;
+      border-radius: var(--radius-pill);
+      background: var(--v2-soft);
+      border: 1px solid rgba(16,185,129,0.3);
+      color: var(--v2-light);
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-weight: 600;
+      margin-bottom: 24px;
+    }
+    .eyebrow-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      background: var(--v2);
+      box-shadow: 0 0 0 4px rgba(16,185,129,0.2);
+      animation: pulse 2.4s ease-in-out infinite;
+    }
+    @keyframes pulse {
+      0%, 100% { opacity: 1; transform: scale(1); }
+      50% { opacity: 0.6; transform: scale(1.2); }
+    }
+
+    h1.hero-title {
+      font-family: "Fraunces", serif;
+      font-weight: 500;
+      font-size: clamp(2.6rem, 5.2vw, 4.6rem);
+      line-height: 1.02;
+      letter-spacing: -0.035em;
+      margin-bottom: 24px;
+      color: var(--text);
+    }
+    h1.hero-title em {
+      font-style: italic;
+      font-weight: 400;
+      background: linear-gradient(120deg, var(--v2-light) 0%, var(--uji-blue-light) 60%, var(--v1-light) 100%);
+      -webkit-background-clip: text;
+      background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+
+    .hero-lead {
+      font-size: 1.15rem;
+      color: var(--text-soft);
+      max-width: 36rem;
+      line-height: 1.65;
+    }
+    .hero-lead strong {
+      color: var(--text);
+      font-weight: 600;
+    }
+
+    .hero-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      margin-top: 36px;
+    }
+
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      padding: 14px 24px;
+      border-radius: var(--radius-pill);
+      font-size: 0.95rem;
+      font-weight: 600;
+      font-family: inherit;
+      border: 1px solid transparent;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      letter-spacing: -0.01em;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--v2) 0%, var(--v2-deep) 100%);
+      color: #ffffff;
+      box-shadow: 0 14px 40px -12px var(--v2-glow), inset 0 1px 0 rgba(255,255,255,0.15);
+    }
+    .btn-primary:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 20px 50px -10px var(--v2-glow), inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    .btn-secondary {
+      background: var(--bg-elev);
+      border-color: var(--border-strong);
+      color: var(--text);
+    }
+    .btn-secondary:hover {
+      background: var(--bg-elev-2);
+      border-color: var(--text-muted);
+      transform: translateY(-2px);
+    }
+    .btn .arrow {
+      transition: transform 0.2s;
+    }
+    .btn:hover .arrow {
+      transform: translateX(3px);
+    }
+
+    /* Hero panel — métricas destacadas (KPIs) */
+    .hero-panel {
+      background:
+        linear-gradient(135deg, rgba(30,64,175,0.18) 0%, rgba(16,185,129,0.08) 100%),
+        var(--bg-elev);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      padding: 32px 28px;
+      box-shadow: var(--shadow-lg);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero-panel::before {
+      content: "";
+      position: absolute;
+      top: -50%;
+      right: -30%;
+      width: 60%;
+      height: 100%;
+      background: radial-gradient(circle, var(--uji-blue-glow) 0%, transparent 70%);
+      pointer-events: none;
+    }
+    .panel-label {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      color: var(--text-muted);
+      font-weight: 600;
+      margin-bottom: 24px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      position: relative;
+      z-index: 1;
+    }
+    .panel-label::before {
+      content: "";
+      width: 24px;
+      height: 1px;
+      background: var(--text-muted);
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      position: relative;
+      z-index: 1;
+    }
+    .kpi {
+      padding: 18px 16px;
+      background: rgba(10,14,26,0.5);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      transition: all 0.25s ease;
+    }
+    .kpi:hover {
+      border-color: var(--border-strong);
+      transform: translateY(-2px);
+    }
+    .kpi-value {
+      font-family: "Fraunces", serif;
+      font-size: 2rem;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+      color: var(--text);
+      line-height: 1.1;
+      margin-bottom: 4px;
+    }
+    .kpi-value .unit {
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      font-weight: 500;
+    }
+    .kpi-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 500;
+    }
+    .kpi-mono {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.7rem;
+      color: var(--v2-light);
+      margin-top: 6px;
+      letter-spacing: -0.02em;
+    }
+
+    /* ============================================
+       SECCIONES
+       ============================================ */
+    section {
+      padding: 80px 0;
+      position: relative;
+    }
+
+    .section-head {
+      max-width: 720px;
+      margin-bottom: 56px;
+    }
+    .section-eyebrow {
+      font-size: 0.74rem;
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      color: var(--uji-blue-light);
+      font-weight: 600;
+      margin-bottom: 14px;
+    }
+    h2 {
+      font-family: "Fraunces", serif;
+      font-weight: 500;
+      font-size: clamp(2rem, 3.5vw, 2.8rem);
+      letter-spacing: -0.025em;
+      line-height: 1.1;
+      color: var(--text);
+      margin-bottom: 16px;
+    }
+    h2 em {
+      font-style: italic;
+      color: var(--v2-light);
+    }
+    .section-lead {
+      font-size: 1.05rem;
+      color: var(--text-soft);
+      line-height: 1.65;
+    }
+
+    /* ============================================
+       VERSIONES — Tarjetas V2 (destacada) y V1
+       ============================================ */
+    .versions {
+      display: grid;
+      grid-template-columns: 1.15fr 1fr;
+      gap: 28px;
+    }
+
+    .version-card {
+      position: relative;
+      background: var(--bg-elev);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      padding: 36px 32px;
+      overflow: hidden;
+      transition: all 0.3s ease;
+    }
+    .version-card:hover {
+      transform: translateY(-4px);
+    }
+
+    /* V2 — destacada */
+    .version-card.v2 {
+      background:
+        linear-gradient(135deg, rgba(16,185,129,0.08) 0%, transparent 60%),
+        var(--bg-elev);
+      border-color: rgba(16,185,129,0.3);
+      box-shadow: var(--shadow-glow-v2);
+    }
+    .version-card.v2:hover {
+      border-color: rgba(16,185,129,0.5);
+      box-shadow: 0 0 80px -10px var(--v2-glow);
+    }
+    .version-card.v2::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--v2) 0%, var(--v2-light) 50%, var(--uji-blue-light) 100%);
+    }
+
+    /* V1 — referencia */
+    .version-card.v1 {
+      background:
+        linear-gradient(135deg, rgba(245,158,11,0.05) 0%, transparent 60%),
+        var(--bg-elev);
+      border-color: rgba(245,158,11,0.2);
+    }
+    .version-card.v1:hover {
+      border-color: rgba(245,158,11,0.4);
+      box-shadow: var(--shadow-glow-v1);
+    }
+    .version-card.v1::before {
+      content: "";
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 3px;
+      background: linear-gradient(90deg, var(--v1-deep) 0%, var(--v1) 50%, var(--v1-light) 100%);
+      opacity: 0.7;
+    }
+
+    .version-tag {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 6px 14px;
+      border-radius: var(--radius-pill);
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.14em;
+      font-weight: 600;
+      margin-bottom: 20px;
+    }
+    .v2 .version-tag {
+      background: rgba(16,185,129,0.15);
+      color: var(--v2-light);
+      border: 1px solid rgba(16,185,129,0.35);
+    }
+    .v1 .version-tag {
+      background: rgba(245,158,11,0.12);
+      color: var(--v1-light);
+      border: 1px solid rgba(245,158,11,0.3);
+    }
+
+    h3.version-title {
+      font-family: "Fraunces", serif;
+      font-weight: 500;
+      font-size: 1.6rem;
+      letter-spacing: -0.02em;
+      line-height: 1.2;
+      margin-bottom: 12px;
+      color: var(--text);
+    }
+    h3.version-title em {
+      font-style: italic;
+    }
+    .v2 h3.version-title em { color: var(--v2-light); }
+    .v1 h3.version-title em { color: var(--v1-light); }
+
+    .version-desc {
+      font-size: 0.98rem;
+      color: var(--text-soft);
+      line-height: 1.65;
+      margin-bottom: 24px;
+    }
+
+    .features {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 28px;
+    }
+    .feature-chip {
+      padding: 6px 12px;
+      border-radius: var(--radius-pill);
+      font-size: 0.78rem;
+      font-weight: 500;
+      background: var(--bg-elev-2);
+      border: 1px solid var(--border);
+      color: var(--text-soft);
+    }
+    .v2 .feature-chip.priority {
+      background: rgba(16,185,129,0.12);
+      color: var(--v2-light);
+      border-color: rgba(16,185,129,0.3);
+    }
+
+    .resources {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      margin-bottom: 24px;
+      padding-top: 20px;
+      border-top: 1px dashed var(--border-strong);
+    }
+    .resource-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      padding: 6px 0;
+    }
+    .resource-label {
+      font-size: 0.78rem;
+      color: var(--text-muted);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-weight: 500;
+      flex-shrink: 0;
+    }
+    .resource-value {
+      font-family: "JetBrains Mono", monospace;
+      font-size: 0.8rem;
+      color: var(--text-soft);
+      text-align: right;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .actions-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+    .action-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 9px 16px;
+      border-radius: var(--radius-pill);
+      font-size: 0.85rem;
+      font-weight: 600;
+      transition: all 0.2s;
+      border: 1px solid var(--border-strong);
+    }
+    .v2 .action-btn.primary {
+      background: var(--v2);
+      color: #052e16;
+      border-color: var(--v2);
+    }
+    .v2 .action-btn.primary:hover {
+      background: var(--v2-light);
+      transform: translateY(-1px);
+    }
+    .v1 .action-btn.primary {
+      background: var(--v1);
+      color: #422006;
+      border-color: var(--v1);
+    }
+    .v1 .action-btn.primary:hover {
+      background: var(--v1-light);
+      transform: translateY(-1px);
+    }
+    .action-btn.ghost {
+      background: transparent;
+      color: var(--text-soft);
+    }
+    .action-btn.ghost:hover {
+      background: var(--bg-elev-2);
+      color: var(--text);
+    }
+
+    /* ============================================
+       COMPARATIVA
+       ============================================ */
+    .comparison {
+      background: var(--bg-elev);
+      border: 1px solid var(--border-strong);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .comparison table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .comparison th, .comparison td {
+      padding: 18px 24px;
+      text-align: left;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.95rem;
+    }
+    .comparison thead {
+      background: var(--bg-elev-2);
+    }
+    .comparison th {
+      font-weight: 600;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      color: var(--text-muted);
+    }
+    .comparison th.v2-col { color: var(--v2-light); }
+    .comparison th.v1-col { color: var(--v1-light); }
+    .comparison td:first-child {
+      color: var(--text-muted);
+      font-size: 0.88rem;
+      font-weight: 500;
+    }
+    .comparison tbody tr:last-child td { border-bottom: none; }
+    .comparison tbody tr:hover { background: rgba(255,255,255,0.02); }
+
+    /* ============================================
+       SOBRE EL PROYECTO
+       ============================================ */
+    .about-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .about-card {
+      background: var(--bg-elev);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      padding: 28px 26px;
+    }
+    .about-card h4 {
+      font-family: "Fraunces", serif;
+      font-weight: 600;
+      font-size: 1.15rem;
+      margin-bottom: 12px;
+      color: var(--text);
+      letter-spacing: -0.01em;
+    }
+    .about-card p {
+      font-size: 0.95rem;
+      color: var(--text-soft);
+      line-height: 1.65;
+    }
+    .about-card .icon {
+      width: 38px;
+      height: 38px;
+      border-radius: 10px;
+      background: var(--uji-blue);
+      display: grid;
+      place-items: center;
+      margin-bottom: 16px;
+      font-size: 1.1rem;
+      color: #fff;
+    }
+    .about-card.v2-icon .icon { background: var(--v2-deep); }
+    .about-card.v1-icon .icon { background: var(--v1-deep); }
+    .about-card.uji-icon .icon { background: var(--uji-blue); }
+    .about-card.cite-icon .icon { background: var(--bg-elev-2); border: 1px solid var(--border-strong); color: var(--text-soft); }
+
+    /* ============================================
+       FOOTER
+       ============================================ */
+    footer {
+      padding: 60px 0 40px;
+      border-top: 1px solid var(--border);
+      margin-top: 40px;
+    }
+    .footer-grid {
+      display: grid;
+      grid-template-columns: 1.5fr 1fr 1fr;
+      gap: 40px;
+      margin-bottom: 40px;
+    }
+    .footer-block h5 {
+      font-family: "Fraunces", serif;
+      font-weight: 600;
+      font-size: 1rem;
+      letter-spacing: -0.01em;
+      margin-bottom: 14px;
+      color: var(--text);
+    }
+    .footer-block p, .footer-block li {
+      font-size: 0.88rem;
+      color: var(--text-soft);
+      line-height: 1.7;
+    }
+    .footer-block ul {
+      list-style: none;
+    }
+    .footer-block a:hover {
+      color: var(--text);
+    }
+    .footer-author {
+      font-family: "Fraunces", serif;
+      font-size: 1.15rem;
+      font-weight: 500;
+      color: var(--text);
+      margin-bottom: 6px;
+    }
+    .footer-meta {
+      display: flex;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 12px;
+      padding-top: 24px;
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+      color: var(--text-muted);
+    }
+
+    /* ============================================
+       RESPONSIVE
+       ============================================ */
+    @media (max-width: 900px) {
+      .hero { padding: 56px 0 40px; }
+      .hero-grid { grid-template-columns: 1fr; gap: 36px; }
+      .versions { grid-template-columns: 1fr; }
+      .about-grid { grid-template-columns: 1fr; }
+      .footer-grid { grid-template-columns: 1fr; gap: 28px; }
+      section { padding: 56px 0; }
+      .section-head { margin-bottom: 36px; }
+      .nav { display: none; }
+      .topbar-inner { padding: 12px 0; }
+      .comparison { overflow-x: auto; }
+      .comparison table { min-width: 540px; }
+    }
+
+    @media (max-width: 540px) {
+      .container { width: calc(100% - 28px); }
+      .kpi-grid { grid-template-columns: 1fr; }
+      .hero-actions { flex-direction: column; align-items: stretch; }
+      .btn { justify-content: center; }
+      .resource-row { flex-direction: column; align-items: flex-start; gap: 4px; }
+      .resource-value { text-align: left; max-width: 100%; }
+    }
+
+    /* ============================================
+       ANIMACIONES DE ENTRADA
+       ============================================ */
+    @media (prefers-reduced-motion: no-preference) {
+      .hero-grid > * {
+        animation: fadeUp 0.7s ease-out backwards;
+      }
+      .hero-grid > *:nth-child(1) { animation-delay: 0.1s; }
+      .hero-grid > *:nth-child(2) { animation-delay: 0.25s; }
+
+      @keyframes fadeUp {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <!-- ============================================
+       TOPBAR
+       ============================================ -->
+  <header class="topbar">
+    <div class="container">
+      <div class="topbar-inner">
+        <a href="#inicio" class="brand">
+          <div class="brand-mark">AU</div>
+          <div class="brand-text">
+            <span class="brand-title">Pronóstico del Abandono</span>
+            <span class="brand-sub">TFM · Universitat Jaume I</span>
+          </div>
+        </a>
+        <nav class="nav" aria-label="Navegación principal">
+          <a href="#versiones">Versiones</a>
+          <a href="#comparativa">Comparativa</a>
+          <a href="#proyecto">Proyecto</a>
+          <a href="https://tfm-abandono-dinamico.streamlit.app/" target="_blank" rel="noopener">App V2 ↗</a>
+        </nav>
+      </div>
+    </div>
+  </header>
+
+  <main id="inicio">
+
+    <!-- ============================================
+         HERO
+         ============================================ -->
+    <section class="hero">
+      <div class="container">
+        <div class="hero-grid">
+
+          <div class="hero-copy">
+            <div class="eyebrow">
+              <span class="eyebrow-dot"></span>
+              <span>TFM · Máster en Ciencia de Datos · UOC</span>
+            </div>
+
+            <h1 class="hero-title">
+              Pronóstico del <em>éxito y abandono</em> universitario en la UJI
+            </h1>
+
+            <p class="hero-lead">
+              Trabajo Final de Máster que aplica <strong>machine learning</strong> a los datos institucionales de la Universitat Jaume I para predecir, con un año de antelación, qué estudiantes están en riesgo de abandonar sus estudios. Modelo final <strong>LightGBM</strong> con AUC&nbsp;=&nbsp;0,956 sobre 30&nbsp;000 estudiantes y 11 cursos académicos.
+            </p>
+
+            <div class="hero-actions">
+              <a class="btn btn-primary" href="https://tfm-abandono-dinamico.streamlit.app/" target="_blank" rel="noopener noreferrer">
+                Abrir aplicación V2 (dinámica)
+                <span class="arrow">→</span>
+              </a>
+              <a class="btn btn-secondary" href="#versiones">
+                Ver ambas versiones
+              </a>
+            </div>
+          </div>
+
+          <aside class="hero-panel" aria-label="Métricas clave del proyecto">
+            <div class="panel-label">Modelo final · LightGBM</div>
+            <div class="kpi-grid">
+              <div class="kpi">
+                <div class="kpi-value">0,956</div>
+                <div class="kpi-label">AUC test</div>
+                <div class="kpi-mono">// roc-auc</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-value">0,833</div>
+                <div class="kpi-label">F1 test</div>
+                <div class="kpi-mono">// criterio elegido</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-value">30 K<span class="unit"></span></div>
+                <div class="kpi-label">estudiantes</div>
+                <div class="kpi-mono">// 2010—2020</div>
+              </div>
+              <div class="kpi">
+                <div class="kpi-value">42<span class="unit"></span></div>
+                <div class="kpi-label">titulaciones</div>
+                <div class="kpi-mono">// 5 ramas</div>
+              </div>
+            </div>
+          </aside>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================
+         VERSIONES
+         ============================================ -->
+    <section id="versiones">
+      <div class="container">
+        <div class="section-head">
+          <div class="section-eyebrow">Dos versiones · una misma investigación</div>
+          <h2>El proyecto, en sus <em>dos implementaciones</em></h2>
+          <p class="section-lead">
+            Esta investigación se materializa en dos versiones complementarias. La <strong>V2 dinámica</strong> es la implementación principal y recomendada para revisión. La <strong>V1 original</strong> se mantiene como referencia documental del recorrido del trabajo.
+          </p>
+        </div>
+
+        <div class="versions">
+
+          <!-- V2 — destacada -->
+          <article class="version-card v2">
+            <div class="version-tag">
+              <span>★</span>
+              <span>Versión recomendada · V2</span>
+            </div>
+            <h3 class="version-title">
+              Implementación <em>dinámica</em>
+            </h3>
+            <p class="version-desc">
+              Aplicación interactiva con sistema de selección automática del modelo ganador, predicción individual de estudiantes, análisis de interpretabilidad (SHAP, LIME) y métricas de equidad algorítmica. Fuente única de verdad mediante <code>metricas_modelo.json</code>.
+            </p>
+            <div class="features">
+              <span class="feature-chip priority">Sistema dinámico</span>
+              <span class="feature-chip priority">Predicción individual</span>
+              <span class="feature-chip priority">Interpretabilidad</span>
+              <span class="feature-chip">Fairness</span>
+              <span class="feature-chip">SHAP · LIME</span>
+            </div>
+
+            <div class="resources">
+              <div class="resource-row">
+                <span class="resource-label">App</span>
+                <span class="resource-value">tfm-abandono-dinamico.streamlit.app</span>
+              </div>
+              <div class="resource-row">
+                <span class="resource-label">Código</span>
+                <span class="resource-value">github.com/mortemj/AU_UJI_v2</span>
+              </div>
+              <div class="resource-row">
+                <span class="resource-label">Documentación</span>
+                <span class="resource-value">mortemj.github.io/AU_UJI_v2/</span>
+              </div>
+            </div>
+
+            <div class="actions-row">
+              <a class="action-btn primary" href="https://tfm-abandono-dinamico.streamlit.app/" target="_blank" rel="noopener noreferrer">
+                Abrir app →
+              </a>
+              <a class="action-btn ghost" href="https://github.com/mortemj/AU_UJI_v2" target="_blank" rel="noopener noreferrer">
+                Repositorio
+              </a>
+              <a class="action-btn ghost" href="https://mortemj.github.io/AU_UJI_v2/" target="_blank" rel="noopener noreferrer">
+                Documentación
+              </a>
+            </div>
+          </article>
+
+          <!-- V1 — referencia -->
+          <article class="version-card v1">
+            <div class="version-tag">
+              <span>○</span>
+              <span>Versión base · V1</span>
+            </div>
+            <h3 class="version-title">
+              Implementación <em>original</em>
+            </h3>
+            <p class="version-desc">
+              Versión inicial del proyecto, útil como referencia histórica del recorrido metodológico. Documenta las primeras fases del análisis y la primera aproximación al modelo predictivo.
+            </p>
+            <div class="features">
+              <span class="feature-chip">Versión base</span>
+              <span class="feature-chip">Referencia</span>
+              <span class="feature-chip">Documentación inicial</span>
+            </div>
+
+            <div class="resources">
+              <div class="resource-row">
+                <span class="resource-label">App</span>
+                <span class="resource-value">tfm-abandono.streamlit.app</span>
+              </div>
+              <div class="resource-row">
+                <span class="resource-label">Código</span>
+                <span class="resource-value">github.com/mortemj/AU_UJI</span>
+              </div>
+              <div class="resource-row">
+                <span class="resource-label">Documentación</span>
+                <span class="resource-value">mortemj.github.io/AU_UJI/</span>
+              </div>
+            </div>
+
+            <div class="actions-row">
+              <a class="action-btn primary" href="https://tfm-abandono.streamlit.app/" target="_blank" rel="noopener noreferrer">
+                Abrir app →
+              </a>
+              <a class="action-btn ghost" href="https://github.com/mortemj/AU_UJI" target="_blank" rel="noopener noreferrer">
+                Repositorio
+              </a>
+              <a class="action-btn ghost" href="https://mortemj.github.io/AU_UJI/" target="_blank" rel="noopener noreferrer">
+                Documentación
+              </a>
+            </div>
+          </article>
+
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================
+         COMPARATIVA
+         ============================================ -->
+    <section id="comparativa">
+      <div class="container">
+        <div class="section-head">
+          <div class="section-eyebrow">Diferenciación · Por qué V2</div>
+          <h2>Comparativa <em>técnica</em></h2>
+          <p class="section-lead">
+            La V2 incorpora todos los aprendizajes de la V1 e introduce mejoras metodológicas sustanciales.
+          </p>
+        </div>
+
+        <div class="comparison">
+          <table>
+            <thead>
+              <tr>
+                <th>Aspecto</th>
+                <th class="v2-col">V2 · Dinámica</th>
+                <th class="v1-col">V1 · Original</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Selección del modelo</td>
+                <td>Automática mediante <code>resultados_maestro.parquet</code></td>
+                <td>Modelo fijo predefinido</td>
+              </tr>
+              <tr>
+                <td>Modelo ganador</td>
+                <td>LightGBM (AUC 0,956 · F1 0,833)</td>
+                <td>Aproximación inicial</td>
+              </tr>
+              <tr>
+                <td>Interpretabilidad</td>
+                <td>SHAP, LIME, contrafactuales</td>
+                <td>No incluida</td>
+              </tr>
+              <tr>
+                <td>Equidad algorítmica</td>
+                <td>Análisis de fairness por subgrupos</td>
+                <td>No incluida</td>
+              </tr>
+              <tr>
+                <td>Predicción individual</td>
+                <td>Sí, con interfaz adaptativa</td>
+                <td>Solo estática</td>
+              </tr>
+              <tr>
+                <td>Recomendación</td>
+                <td>Revisión principal del TFM</td>
+                <td>Consulta histórica</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============================================
+         SOBRE EL PROYECTO
+         ============================================ -->
+    <section id="proyecto">
+      <div class="container">
+        <div class="section-head">
+          <div class="section-eyebrow">Contexto académico</div>
+          <h2>Sobre el <em>proyecto</em></h2>
+        </div>
+
+        <div class="about-grid">
+
+          <div class="about-card uji-icon">
+            <div class="icon">◆</div>
+            <h4>Origen institucional</h4>
+            <p>
+              Trabajo realizado con datos reales del data warehouse de la Universitat Jaume I (UJI), proporcionados a través de la Oficina de Promoción y Planificación. Cubre 11 cursos académicos completos (2010–2020).
+            </p>
+          </div>
+
+          <div class="about-card v2-icon">
+            <div class="icon">▲</div>
+            <h4>Metodología</h4>
+            <p>
+              Comparación sistemática de 69 modelos de machine learning con validación cruzada y selección automática por F1-score. Modelo final: LightGBM. Pipeline reproducible con sistema dinámico.
+            </p>
+          </div>
+
+          <div class="about-card v1-icon">
+            <div class="icon">●</div>
+            <h4>Aplicación</h4>
+            <p>
+              La predicción permite a la UJI identificar con un curso de antelación a estudiantes en riesgo de abandono, habilitando intervenciones tempranas vinculadas al ODS 4 (educación de calidad).
+            </p>
+          </div>
+
+          <div class="about-card cite-icon">
+            <div class="icon">§</div>
+            <h4>Cita académica</h4>
+            <p>
+              Morte Ruiz, M.&nbsp;J. (2026). <em>Pronóstico del éxito y del abandono en los títulos de grado de la UJI</em>. Trabajo Final de Máster, UOC. Director: Raúl Parada.
+            </p>
+          </div>
+
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <!-- ============================================
+       FOOTER
+       ============================================ -->
+  <footer>
+    <div class="container">
+      <div class="footer-grid">
+
+        <div class="footer-block">
+          <div class="footer-author">María José Morte Ruiz</div>
+          <p>Trabajo Final de Máster en Ciencia de Datos · Universitat Oberta de Catalunya (UOC). Investigación desarrollada con datos cedidos por la Universitat Jaume I (UJI).</p>
+        </div>
+
+        <div class="footer-block">
+          <h5>Acceso rápido</h5>
+          <ul>
+            <li><a href="https://tfm-abandono-dinamico.streamlit.app/" target="_blank" rel="noopener">App V2 (dinámica)</a></li>
+            <li><a href="https://tfm-abandono.streamlit.app/" target="_blank" rel="noopener">App V1 (original)</a></li>
+            <li><a href="https://github.com/mortemj/AU_UJI_v2" target="_blank" rel="noopener">Repositorio V2</a></li>
+            <li><a href="https://github.com/mortemj/AU_UJI" target="_blank" rel="noopener">Repositorio V1</a></li>
+          </ul>
+        </div>
+
+        <div class="footer-block">
+          <h5>Dirección académica</h5>
+          <ul>
+            <li>Director: Raúl Parada (UOC)</li>
+            <li>Datos institucionales: UJI</li>
+            <li>Defensa: 2026</li>
+          </ul>
+        </div>
+
+      </div>
+
+      <div class="footer-meta">
+        <span>© 2026 · María José Morte Ruiz · TFM UOC</span>
+        <span>mortemj.github.io</span>
+      </div>
+    </div>
+  </footer>
+
+</body>
+</html>
